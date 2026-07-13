@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Shipment {
+  id        String    @id @default(cuid())
+  name      String
+  memo      String?
+  createdAt DateTime  @default(now())
+  receipts  Receipt[]
+}
+
+model Receipt {
+  id          String        @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  imageUrl    String
+  storeName   String?
+  rawText     String?       @db.Text
+  status      String        @default("pending") // pending | confirmed
+  createdAt   DateTime      @default(now())
+  items       ReceiptItem[]
+}
+
+model ReceiptItem {
+  id          String   @id @default(cuid())
+  receiptId   String
+  receipt     Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  nameJa      String
+  nameKoDraft String
+  nameKoFinal String?
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  amount      Decimal  @db.Decimal(12, 2)
+  hsCode      String?
+  confirmed   Boolean  @default(false)
+  sortOrder   Int      @default(0)
+}
