@@ -7,15 +7,15 @@
 ## 핵심 흐름
 
 1. 사입 건(Shipment) 생성
-2. 영수증 사진 업로드 → Google Cloud Vision OCR → 일→한 자동 번역(초안 생성)
-3. **품목별로 한글명/수량/단가를 확인하고 "컨펌" 버튼을 눌러야 최종 확정** (자동 번역 결과를 그대로 신뢰하지 않고, 사람이 검수하는 단계를 반드시 거칩니다)
+2. 영수증 사진 업로드 → Claude API(비전)가 품목명(일본어) 인식 + 한글 번역 초안을 한 번에 생성
+3. **품목별로 한글명/수량/단가를 확인하고 "컨펌" 버튼을 눌러야 최종 확정** (자동 인식/번역 결과를 그대로 신뢰하지 않고, 사람이 검수하는 단계를 반드시 거칩니다)
 4. 컨펌된 품목만 모아 패킹리스트 / 상업송장 / 목록통관용 간이서류(xlsx) 다운로드
 
 ## 기술 스택
 
 - Next.js 14 (App Router, TypeScript)
 - PostgreSQL + Prisma ORM
-- Google Cloud Vision API (OCR) + Cloud Translation API (번역) — REST, API 키 방식
+- **Claude API** (비전 + 도구 사용) — 영수증 사진에서 품목 인식과 일→한 번역을 한 번의 호출로 처리
 - Vercel Blob (영수증 이미지 저장)
 - exceljs (엑셀 서류 생성)
 
@@ -30,11 +30,8 @@ npm run dev
 
 ## 필요한 외부 서비스 (배포 전 준비)
 
-1. **PostgreSQL 데이터베이스** — Vercel Postgres, Neon, Supabase 중 아무거나 사용 가능 (무료 티어로 충분)
-2. **Google Cloud API 키** — [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트 생성 후
-   - "Cloud Vision API" 활성화
-   - "Cloud Translation API" 활성화
-   - API 키 생성 (사용 제한을 두 API로 한정 권장)
+1. **PostgreSQL 데이터베이스** — Vercel Postgres(Neon), Supabase 중 아무거나 사용 가능 (무료 티어로 충분)
+2. **Anthropic API 키** — https://console.anthropic.com/settings/keys 에서 발급 (사용량만큼 과금되는 종량제이며, 영수증 1건 인식에 드는 비용은 매우 적습니다. 콘솔의 "Limits"에서 월 지출 한도를 걸어두는 걸 추천합니다.)
 3. **Vercel 계정** — GitHub 로그인으로 무료 가입 가능
 
 ---
@@ -72,14 +69,14 @@ Vercel 프로젝트 설정 → **Settings → Environment Variables**에서 아�
 
 | 변수명 | 값 |
 |---|---|
-| `DATABASE_URL` | 1단계에서 준비한 PostgreSQL 연결 문자열 |
-| `GOOGLE_CLOUD_API_KEY` | Google Cloud API 키 |
+| `DATABASE_URL` | 1단계에서 준비한 PostgreSQL 연결 문자열 (DB를 Vercel Storage에서 만들면 자동 추가됨) |
+| `ANTHROPIC_API_KEY` | Anthropic 콘솔에서 발급한 API 키 |
 | `BLOB_READ_WRITE_TOKEN` | 아래 4단계에서 생성 |
 
 ### 4) Vercel Blob Storage 연결 (영수증 이미지 저장용)
 
-Vercel 프로젝트 → **Storage** 탭 → "Create Database" → "Blob" 선택 → 프로젝트에 연결.
-연결하면 `BLOB_READ_WRITE_TOKEN`이 자동으로 환경변수에 채워집니다 (수동 입력 불필요).
+Vercel 프로젝트 → **Storage** 탭 → "Create Database" → "Blob" 선택(Access: **Public**) → 생성.
+생성된 스토어 페이지의 **".env.local"** 탭에서 `BLOB_READ_WRITE_TOKEN` 값을 복사해 Environment Variables에 등록합니다.
 
 ### 5) 데이터베이스 마이그레이션
 
@@ -93,15 +90,18 @@ DATABASE_URL="<운영 DB 연결 문자열>" npx prisma migrate deploy
 
 Vercel에서 "Deploy" 버튼을 누르면 자동으로 빌드 후 배포됩니다.
 이후 GitHub `main` 브랜치에 푸시할 때마다 자동으로 재배포됩니다.
+환경변수를 새로 추가/변경한 뒤에는 **Deployments 탭 → 최신 배포 옆 "..." → Redeploy**로 한 번 더 배포해야 반영됩니다.
 
 ---
 
 ## 참고 및 주의사항
 
-- **OCR/번역 정확도**: 일본 영수증 포맷이 매장마다 달라 자동 인식이 완벽하지 않을 수 있습니다.
+- **인식/번역 정확도**: 일본 영수증 포맷이 매장마다 달라 자동 인식이 완벽하지 않을 수 있습니다.
   그래서 이 앱은 인식/번역 결과를 항상 "초안"으로 두고, 사용자가 직접 확인·수정 후 **컨펌**해야
   서류에 반영되도록 설계했습니다.
 - **목록통관용 간이서류**는 관세청 정식 신고 서식이 아닌 참고용 문서입니다. 실제 수입통관 신고는
   특급탁송업체 또는 관세사를 통해 진행해주세요. 본 앱은 법률/통관 자문을 제공하지 않습니다.
 - 여러 명이 함께 쓸 계획이라면 로그인/인증 기능이 없다는 점을 참고해주세요 (현재는 링크만 알면
   누구나 접근 가능한 단일 사용자용 구조입니다). 필요하면 이후 인증을 추가할 수 있습니다.
+- Anthropic API는 종량제 과금입니다. 예상치 못한 비용을 막으려면 Anthropic 콘솔의 Limits 설정에서
+  월 지출 한도를 걸어두는 것을 권장합니다.

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { runOcr } from "@/lib/vision";
-import { translateJaToKo } from "@/lib/translate";
-import { parseReceiptText } from "@/lib/parseReceipt";
+import { extractReceiptItems } from "@/lib/claude";
 import { uploadReceiptImage } from "@/lib/blob";
 
 export const runtime = "nodejs";
@@ -26,53 +24,39 @@ export async function POST(
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
   const base64 = buffer.toString("base64");
+  const mediaType = file.type || "image/jpeg";
 
-  // 1) 이미지 업로드 (Vercel Blob) — 실패해도 OCR은 계속 진행
+  // 1) 이미지 업로드 (Vercel Blob) — 실패해도 품목 인식은 계속 진행
   let imageUrl = "";
   try {
-    imageUrl = await uploadReceiptImage(buffer, file.name || "receipt.jpg", file.type || "image/jpeg");
+    imageUrl = await uploadReceiptImage(buffer, file.name || "receipt.jpg", mediaType);
   } catch (e) {
     console.error("이미지 업로드 실패:", e);
   }
 
-  // 2) OCR
-  let rawText = "";
+  // 2) Claude Vision으로 품목 인식 + 한글 번역 초안을 한 번에 생성
+  let extracted;
   try {
-    rawText = await runOcr(base64);
+    extracted = await extractReceiptItems(base64, mediaType);
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "OCR 처리 중 오류가 발생했습니다.";
+    const message = e instanceof Error ? e.message : "품목 인식 중 오류가 발생했습니다.";
     return NextResponse.json({ error: message }, { status: 502 });
-  }
-
-  // 3) 라인 파싱 (초안)
-  const parsedLines = parseReceiptText(rawText);
-
-  // 4) 일→한 번역 (품목명 초안, 사용자 컨펌 전까지는 draft로만 사용)
-  let translations: string[] = [];
-  try {
-    translations =
-      parsedLines.length > 0
-        ? await translateJaToKo(parsedLines.map((l) => l.nameJa))
-        : [];
-  } catch (e) {
-    console.error("번역 실패:", e);
-    translations = parsedLines.map(() => "");
   }
 
   const receipt = await prisma.receipt.create({
     data: {
       shipmentId: shipment.id,
       imageUrl,
-      rawText,
+      rawText: null,
       status: "pending",
       items: {
-        create: parsedLines.map((line, idx) => ({
-          nameJa: line.nameJa,
-          nameKoDraft: translations[idx] || "",
+        create: extracted.map((item, idx) => ({
+          nameJa: item.nameJa,
+          nameKoDraft: item.nameKo || "",
           nameKoFinal: null,
-          quantity: line.quantity,
-          unitPrice: line.unitPrice,
-          amount: line.amount,
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || 0,
+          amount: item.amount || 0,
           confirmed: false,
           sortOrder: idx,
         })),
