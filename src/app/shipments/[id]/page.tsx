@@ -190,23 +190,25 @@ function ReceiptCard({ receipt, onChanged }: { receipt: Receipt; onChanged: () =
       {receipt.items.length === 0 ? (
         <div className="empty">품목을 인식하지 못했습니다. 사진을 다시 찍어 업로드해보세요.</div>
       ) : (
-        <table>
-          <thead>
-            <tr>
-              <th style={{ width: "22%" }}>원문(일본어)</th>
-              <th style={{ width: "28%" }}>한글 품목명</th>
-              <th style={{ width: "10%" }}>수량</th>
-              <th style={{ width: "14%" }}>단가(¥)</th>
-              <th style={{ width: "14%" }}>금액(¥)</th>
-              <th style={{ width: "12%" }}>상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            {receipt.items.map((item) => (
-              <ItemRow key={item.id} receiptId={receipt.id} item={item} onChanged={onChanged} />
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th style={{ minWidth: 130 }}>원문(일본어)</th>
+                <th style={{ minWidth: 130 }}>한글 품목명</th>
+                <th style={{ minWidth: 64 }}>수량</th>
+                <th style={{ minWidth: 90 }}>단가(¥)</th>
+                <th style={{ minWidth: 90 }}>금액(¥)</th>
+                <th style={{ minWidth: 90 }}>상태</th>
+              </tr>
+            </thead>
+            <tbody>
+              {receipt.items.map((item) => (
+                <ItemRow key={item.id} receiptId={receipt.id} item={item} onChanged={onChanged} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
@@ -257,33 +259,33 @@ function ItemRow({
 
   return (
     <tr>
-      <td className="muted">{item.nameJa}</td>
-      <td>
+      <td className="muted" style={{ minWidth: 130 }}>{item.nameJa}</td>
+      <td style={{ minWidth: 130 }}>
         {item.confirmed ? (
           <span>{item.nameKoFinal}</span>
         ) : (
-          <input type="text" value={nameKo} onChange={(e) => setNameKo(e.target.value)} placeholder="한글 품목명" />
+          <input className="wide-input" type="text" value={nameKo} onChange={(e) => setNameKo(e.target.value)} placeholder="한글 품목명" />
         )}
       </td>
-      <td>
+      <td style={{ minWidth: 64 }}>
         {item.confirmed ? (
           item.quantity
         ) : (
-          <input type="number" value={quantity} min={1} onChange={(e) => setQuantity(parseInt(e.target.value) || 1)} />
+          <input className="num-input" type="number" value={quantity} min={1} onChange={(e) => setQuantity(parseInt(e.target.value) || 1)} />
         )}
       </td>
-      <td>
+      <td style={{ minWidth: 90 }}>
         {item.confirmed ? (
           Number(item.unitPrice).toLocaleString()
         ) : (
-          <input type="number" value={unitPrice} onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)} />
+          <input className="num-input" type="number" value={unitPrice} onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)} />
         )}
       </td>
-      <td>
+      <td style={{ minWidth: 90 }}>
         {item.confirmed ? (
           Number(item.amount).toLocaleString()
         ) : (
-          <input type="number" value={amount} onChange={(e) => setAmount(parseFloat(e.target.value) || 0)} />
+          <input className="num-input" type="number" value={amount} onChange={(e) => setAmount(parseFloat(e.target.value) || 0)} />
         )}
       </td>
       <td>
