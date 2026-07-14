@@ -61,3 +61,28 @@ export async function PATCH(
 
   return NextResponse.json(updated);
 }
+
+// 품목 삭제. 잘못 인식된 줄(상품이 아닌데 품목으로 잡힌 경우 등)을 지울 때 사용합니다.
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { id: string; itemId: string } }
+) {
+  const item = await prisma.receiptItem.findFirst({
+    where: { id: params.itemId, receiptId: params.id },
+  });
+  if (!item) {
+    return NextResponse.json({ error: "품목을 찾을 수 없습니다." }, { status: 404 });
+  }
+
+  await prisma.receiptItem.delete({ where: { id: item.id } });
+
+  // 삭제 후 남은 품목 기준으로 영수증 컨펌 상태 다시 계산
+  const siblings = await prisma.receiptItem.findMany({ where: { receiptId: params.id } });
+  const allConfirmed = siblings.length > 0 && siblings.every((it: ReceiptItem) => it.confirmed);
+  await prisma.receipt.update({
+    where: { id: params.id },
+    data: { status: allConfirmed ? "confirmed" : "pending" },
+  });
+
+  return NextResponse.json({ success: true });
+}
