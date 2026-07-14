@@ -34,7 +34,7 @@ export async function POST(
     console.error("이미지 업로드 실패:", e);
   }
 
-  // 2) Claude Vision으로 품목 인식 + 한글 번역 초안을 한 번에 생성
+  // 2) Claude Vision으로 품목 인식 + 한글 번역 초안 + 신고용 부가정보를 한 번에 생성
   let extracted;
   try {
     extracted = await extractReceiptItems(base64, mediaType);
@@ -54,6 +54,13 @@ export async function POST(
           nameJa: item.nameJa,
           nameKoDraft: item.nameKo || "",
           nameKoFinal: null,
+          nameEn: item.nameEn || null,
+          brand: item.brand || null,
+          colorEn: item.colorEn || null,
+          size: item.size || null,
+          hsCode: item.hsCode || null,
+          declarationKo: item.declarationKo || null,
+          declarationEn: item.declarationEn || null,
           quantity: item.quantity || 1,
           unitPrice: item.unitPrice || 0,
           amount: item.amount || 0,
