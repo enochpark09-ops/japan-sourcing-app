@@ -78,6 +78,9 @@ a { color: inherit; }
 
 .btn-sm { padding: 5px 10px; font-size: 12px; }
 
+.btn-danger { color: var(--danger); border-color: #fecaca; }
+.btn-danger:hover { background: #fef2f2; }
+
 input[type="text"], input[type="number"], textarea {
   width: 100%;
   padding: 8px 10px;
