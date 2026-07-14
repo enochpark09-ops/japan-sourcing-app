@@ -200,6 +200,7 @@ function ReceiptCard({ receipt, onChanged }: { receipt: Receipt; onChanged: () =
                 <th style={{ minWidth: 90 }}>단가(¥)</th>
                 <th style={{ minWidth: 90 }}>금액(¥)</th>
                 <th style={{ minWidth: 90 }}>상태</th>
+                <th style={{ minWidth: 60 }}></th>
               </tr>
             </thead>
             <tbody>
@@ -228,6 +229,7 @@ function ItemRow({
   const [unitPrice, setUnitPrice] = useState(Number(item.unitPrice));
   const [amount, setAmount] = useState(Number(item.amount));
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [rowError, setRowError] = useState("");
 
   async function patch(body: Record<string, unknown>) {
@@ -255,6 +257,22 @@ function ItemRow({
   async function handleEditAgain() {
     const ok = await patch({ confirmed: false });
     if (ok) onChanged();
+  }
+
+  async function handleDelete() {
+    if (!window.confirm(`"${item.nameJa}" 품목을 삭제할까요? 되돌릴 수 없습니다.`)) return;
+    setDeleting(true);
+    setRowError("");
+    const res = await fetch(`/api/receipts/${receiptId}/items/${item.id}`, {
+      method: "DELETE",
+    });
+    setDeleting(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setRowError(data.error || "삭제 실패");
+      return;
+    }
+    onChanged();
   }
 
   return (
@@ -290,15 +308,20 @@ function ItemRow({
       </td>
       <td>
         {item.confirmed ? (
-          <button className="btn btn-sm" onClick={handleEditAgain} disabled={saving}>
+          <button className="btn btn-sm" onClick={handleEditAgain} disabled={saving || deleting}>
             수정
           </button>
         ) : (
-          <button className="btn btn-sm btn-primary" onClick={handleConfirm} disabled={saving}>
+          <button className="btn btn-sm btn-primary" onClick={handleConfirm} disabled={saving || deleting}>
             {saving ? "저장 중" : "컨펌"}
           </button>
         )}
         {rowError && <div style={{ color: "var(--danger)", fontSize: 11, marginTop: 4 }}>{rowError}</div>}
+      </td>
+      <td style={{ minWidth: 60 }}>
+        <button className="btn btn-sm btn-danger" onClick={handleDelete} disabled={saving || deleting} title="품목 삭제">
+          {deleting ? "삭제 중" : "삭제"}
+        </button>
       </td>
     </tr>
   );
