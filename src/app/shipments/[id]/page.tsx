@@ -160,10 +160,17 @@ export default function ShipmentDetailPage() {
           <button className="btn" disabled={downloading !== null} onClick={() => downloadDoc("customs", "목록통관간이서류")}>
             {downloading === "customs" ? "생성 중..." : "목록통관용 간이서류 다운로드"}
           </button>
+          <button className="btn" disabled={downloading !== null} onClick={() => downloadDoc("forwarding", "배송대행신청서")}>
+            {downloading === "forwarding" ? "생성 중..." : "배송대행 신청서 다운로드"}
+          </button>
         </div>
         <div className="note">
           목록통관용 간이서류는 참고용입니다. 실제 수입통관 신고는 특송업체 또는 관세사를 통해
           진행해주세요. (본 앱은 법률/통관 자문을 제공하지 않습니다.)
+          <br />
+          배송대행 신청서의 브랜드/영어명/색상/사이즈/HS코드/신고설명은 영수증만으로는 알기 어려운
+          정보라 AI가 추정한 초안입니다. 제출 전 꼭 확인해주세요. 현지주문번호/상세url은 빈 칸으로
+          내려가니 다운로드 후 직접 채워주세요.
         </div>
       </div>
     </div>
