@@ -7,7 +7,7 @@ interface ShipmentListItem {
   id: string;
   name: string;
   createdAt: string;
-  receipts: { id: string; status: string; items: { confirmed: boolean }[] }[];
+  receipts: { id: string; status: string; items: { confirmed: boolean; amount: string }[] }[];
 }
 
 export default function HomePage() {
@@ -16,6 +16,7 @@ export default function HomePage() {
   const [name, setName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
@@ -45,6 +46,20 @@ export default function HomePage() {
       return;
     }
     setName("");
+    await load();
+  }
+
+  async function handleDeleteShipment(id: string, name: string) {
+    if (!window.confirm(`"${name}" 사입 건을 삭제할까요? 업로드된 영수증과 품목이 모두 함께 삭제되며 되돌릴 수 없습니다.`)) return;
+    setDeletingId(id);
+    setError("");
+    const res = await fetch(`/api/shipments/${id}`, { method: "DELETE" });
+    setDeletingId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "삭제에 실패했습니다.");
+      return;
+    }
     await load();
   }
 
@@ -82,18 +97,30 @@ export default function HomePage() {
           shipments.map((s) => {
             const allItems = s.receipts.flatMap((r) => r.items);
             const confirmedCount = allItems.filter((i) => i.confirmed).length;
+            const totalAmount = allItems.reduce((sum, i) => sum + Number(i.amount), 0);
             return (
               <div className="shipment-item" key={s.id}>
                 <div>
                   <div style={{ fontWeight: 600 }}>{s.name}</div>
                   <div className="muted" style={{ fontSize: 12 }}>
                     영수증 {s.receipts.length}건 · 품목 {allItems.length}개 중 컨펌 {confirmedCount}개
+                    · 구매액 합계 ¥{totalAmount.toLocaleString()}
                     · {new Date(s.createdAt).toLocaleDateString("ko-KR")}
                   </div>
                 </div>
-                <Link href={`/shipments/${s.id}`}>
-                  <button className="btn">열기</button>
-                </Link>
+                <div className="row">
+                  <Link href={`/shipments/${s.id}`}>
+                    <button className="btn">열기</button>
+                  </Link>
+                  <button
+                    className="btn btn-sm btn-danger"
+                    onClick={() => handleDeleteShipment(s.id, s.name)}
+                    disabled={deletingId === s.id}
+                    title="사입 건 삭제"
+                  >
+                    {deletingId === s.id ? "삭제 중" : "삭제"}
+                  </button>
+                </div>
               </div>
             );
           })
