@@ -28,16 +28,22 @@ model Receipt {
 }
 
 model ReceiptItem {
-  id          String   @id @default(cuid())
-  receiptId   String
-  receipt     Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
-  nameJa      String
-  nameKoDraft String
-  nameKoFinal String?
-  quantity    Int      @default(1)
-  unitPrice   Decimal  @db.Decimal(12, 2)
-  amount      Decimal  @db.Decimal(12, 2)
-  hsCode      String?
-  confirmed   Boolean  @default(false)
-  sortOrder   Int      @default(0)
+  id            String   @id @default(cuid())
+  receiptId     String
+  receipt       Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  nameJa        String
+  nameKoDraft   String
+  nameKoFinal   String?
+  nameEn        String?
+  brand         String?
+  colorEn       String?
+  size          String?
+  quantity      Int      @default(1)
+  unitPrice     Decimal  @db.Decimal(12, 2)
+  amount        Decimal  @db.Decimal(12, 2)
+  hsCode        String?
+  declarationKo String?  @db.Text
+  declarationEn String?  @db.Text
+  confirmed     Boolean  @default(false)
+  sortOrder     Int      @default(0)
 }
