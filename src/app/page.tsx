@@ -20,10 +20,23 @@ export default function HomePage() {
 
   async function load() {
     setLoading(true);
-    const res = await fetch("/api/shipments");
-    const data = await res.json();
-    setShipments(Array.isArray(data) ? data : []);
-    setLoading(false);
+    setError("");
+    try {
+      const res = await fetch("/api/shipments");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || `목록을 불러오지 못했습니다. (HTTP ${res.status})`);
+        setShipments([]);
+        return;
+      }
+      const data = await res.json();
+      setShipments(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError("서버에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      setShipments([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
