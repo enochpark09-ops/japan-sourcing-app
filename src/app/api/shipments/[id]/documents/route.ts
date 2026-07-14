@@ -11,6 +11,8 @@ import type { Receipt, ReceiptItem } from "@prisma/client";
 type ReceiptWithItems = Receipt & { items: ReceiptItem[] };
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const FILE_NAMES: Record<string, string> = {
   "packing-list": "packing-list",
@@ -73,6 +75,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${encodeURIComponent(filename)}"`,
+      "Cache-Control": "no-store, max-age=0",
     },
   });
 }
