@@ -4,6 +4,7 @@ import {
   buildPackingList,
   buildCommercialInvoice,
   buildSimplifiedCustomsList,
+  buildForwardingRequest,
   DocItem,
 } from "@/lib/documents";
 import type { Receipt, ReceiptItem } from "@prisma/client";
@@ -18,6 +19,7 @@ const FILE_NAMES: Record<string, string> = {
   "packing-list": "packing-list",
   invoice: "commercial-invoice",
   customs: "customs-list",
+  forwarding: "forwarding-request",
 };
 
 export async function GET(
@@ -50,10 +52,16 @@ export async function GET(
     no: idx + 1,
     nameKo: item.nameKoFinal || item.nameKoDraft,
     nameJa: item.nameJa,
+    nameEn: item.nameEn,
+    brand: item.brand,
+    colorEn: item.colorEn,
+    size: item.size,
     quantity: item.quantity,
     unitPrice: Number(item.unitPrice),
     amount: Number(item.amount),
     hsCode: item.hsCode,
+    declarationKo: item.declarationKo,
+    declarationEn: item.declarationEn,
   }));
 
   const shipmentInfo = { name: shipment.name, createdAt: shipment.createdAt };
@@ -65,6 +73,8 @@ export async function GET(
     buffer = await buildCommercialInvoice(shipmentInfo, docItems);
   } else if (type === "customs") {
     buffer = await buildSimplifiedCustomsList(shipmentInfo, docItems);
+  } else if (type === "forwarding") {
+    buffer = await buildForwardingRequest(shipmentInfo, docItems);
   } else {
     return NextResponse.json({ error: "알 수 없는 서류 종류입니다." }, { status: 400 });
   }
