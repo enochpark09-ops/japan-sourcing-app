@@ -87,6 +87,22 @@ input[type="text"], input[type="number"], textarea {
   font-family: inherit;
 }
 
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-scroll table { min-width: 620px; }
+
+.num-input {
+  width: auto;
+  min-width: 72px;
+  text-align: right;
+}
+
+.wide-input {
+  min-width: 120px;
+}
+
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 8px 6px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; }
