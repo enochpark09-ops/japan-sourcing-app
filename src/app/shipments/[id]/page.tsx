@@ -76,7 +76,9 @@ export default function ShipmentDetailPage() {
   async function downloadDoc(type: string, label: string) {
     setDownloading(type);
     setError("");
-    const res = await fetch(`/api/shipments/${shipmentId}/documents?type=${type}`);
+    const res = await fetch(`/api/shipments/${shipmentId}/documents?type=${type}`, {
+      cache: "no-store",
+    });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       setError(data.error || "서류 생성에 실패했습니다.");
