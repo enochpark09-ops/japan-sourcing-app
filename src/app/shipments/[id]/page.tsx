@@ -126,7 +126,6 @@ export default function ShipmentDetailPage() {
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             multiple
             style={{ display: "none" }}
             onChange={(e) => handleUpload(e.target.files)}
