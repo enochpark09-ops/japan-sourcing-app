@@ -1,0 +1,14 @@
+{
+  "name": "일본 사입 서류 자동화",
+  "short_name": "사입서류",
+  "description": "일본 사입 영수증 업로드 -> 패킹리스트 / 수입서류 자동 생성",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f7f8",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
