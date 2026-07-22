@@ -178,6 +178,45 @@ export default function ShipmentDetailPage() {
 }
 
 function ReceiptCard({ receipt, onChanged }: { receipt: Receipt; onChanged: () => void }) {
+  const [deletingReceipt, setDeletingReceipt] = useState(false);
+  const [reextracting, setReextracting] = useState(false);
+  const [cardError, setCardError] = useState("");
+
+  const hasConfirmedItem = receipt.items.some((i) => i.confirmed);
+
+  async function handleDeleteReceipt() {
+    if (!window.confirm("이 영수증(사진 + 인식된 품목 전체)을 삭제할까요? 되돌릴 수 없습니다.")) return;
+    setDeletingReceipt(true);
+    setCardError("");
+    const res = await fetch(`/api/receipts/${receipt.id}`, { method: "DELETE" });
+    setDeletingReceipt(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setCardError(data.error || "영수증 삭제 실패");
+      return;
+    }
+    onChanged();
+  }
+
+  async function handleReextract() {
+    if (
+      !window.confirm(
+        "이 영수증을 다시 인식할까요? 현재 초안(컨펌 전) 품목은 새 인식 결과로 교체됩니다."
+      )
+    )
+      return;
+    setReextracting(true);
+    setCardError("");
+    const res = await fetch(`/api/receipts/${receipt.id}/reextract`, { method: "POST" });
+    setReextracting(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setCardError(data.error || "재분석 실패");
+      return;
+    }
+    onChanged();
+  }
+
   return (
     <div className="card">
       <div className="row-between" style={{ marginBottom: 10 }}>
@@ -194,7 +233,32 @@ function ReceiptCard({ receipt, onChanged }: { receipt: Receipt; onChanged: () =
             {new Date(receipt.createdAt).toLocaleString("ko-KR")}
           </span>
         </div>
+        <div className="row">
+          <button
+            className="btn btn-sm"
+            onClick={handleReextract}
+            disabled={deletingReceipt || reextracting || hasConfirmedItem}
+            title={hasConfirmedItem ? "컨펌된 품목이 있어 재분석할 수 없습니다" : "저장된 사진으로 다시 인식"}
+          >
+            {reextracting ? "재분석 중..." : "다시 인식하기"}
+          </button>
+          <button
+            className="btn btn-sm btn-danger"
+            onClick={handleDeleteReceipt}
+            disabled={deletingReceipt || reextracting}
+            title="영수증 삭제"
+          >
+            {deletingReceipt ? "삭제 중..." : "영수증 삭제"}
+          </button>
+        </div>
       </div>
+      {hasConfirmedItem && (
+        <div className="note" style={{ marginBottom: 10 }}>
+          이미 컨펌된 품목이 있어 "다시 인식하기"가 비활성화되어 있습니다. 다시 인식하려면
+          해당 품목을 먼저 "수정" 버튼으로 컨펌 해제해주세요.
+        </div>
+      )}
+      {cardError && <div className="error-box" style={{ marginBottom: 10 }}>{cardError}</div>}
 
       {receipt.items.length === 0 ? (
         <div className="empty">품목을 인식하지 못했습니다. 사진을 다시 찍어 업로드해보세요.</div>
