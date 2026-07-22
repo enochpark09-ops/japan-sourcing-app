@@ -58,7 +58,9 @@ export async function extractReceiptItems(
     },
     body: JSON.stringify({
       model: "claude-sonnet-5",
-      max_tokens: 4096,
+      // 품목 수가 많은 영수증(15개 이상)은 품목별 부가 정보(신고설명 등)까지 합치면
+      // 응답이 길어져서 4096 토큰으로는 중간에 잘릴 수 있습니다. 여유있게 늘려둡니다.
+      max_tokens: 8192,
       system:
         "당신은 일본 매장 영수증(또는 온라인 주문 화면) 사진을 읽고 실제로 구매한 상품 품목만 정확히 " +
         "추출하는 어시스턴트입니다. " +
@@ -168,7 +170,17 @@ export async function extractReceiptItems(
   const finalTotal = toolUse?.input?.finalTotal;
 
   if (!Array.isArray(rawItems)) {
-    throw new Error("Claude 응답에서 품목 추출 결과를 찾을 수 없습니다.");
+    // stop_reason이 "max_tokens"면 응답이 중간에 잘려서 파싱에 실패한 것이므로
+    // 원인을 명확히 알 수 있게 별도 메시지로 안내합니다.
+    if (data?.stop_reason === "max_tokens") {
+      throw new Error(
+        "품목 수가 많아 응답이 중간에 잘렸습니다(max_tokens). 잠시 후 다시 시도해주세요. " +
+          "계속 실패하면 영수증을 여러 장으로 나눠서 업로드해주세요."
+      );
+    }
+    throw new Error(
+      `Claude 응답에서 품목 추출 결과를 찾을 수 없습니다. (stop_reason: ${data?.stop_reason || "알 수 없음"})`
+    );
   }
 
   return applyTotalLevelAdjustment(rawItems, finalTotal);
