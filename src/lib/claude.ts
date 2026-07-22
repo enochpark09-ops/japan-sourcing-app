@@ -4,6 +4,14 @@
 // - 배송대행 신청서(관세 신고용) 다운로드에 필요한 부가 정보(영문명/브랜드/색상/사이즈/HS코드/
 //   신고설명)도 함께 추정해서 반환합니다. 영수증에는 보통 안 나오는 정보라 어디까지나 "초안"이며,
 //   실제 신고 전에 반드시 사람이 확인해야 합니다.
+//
+// [합계 단계 조정(할인/세금 추가) 계산 방식]
+// 예전에는 "품목별 금액에 비율을 곱해서 반환해줘" 라고 모델에게 직접 계산을 맡겼는데,
+// 품목이 여러 개인 영수증에서 모델이 계산을 누락하거나 틀리는 경우가 실제로 발견됐습니다.
+// (LLM은 한 번의 생성 과정에서 여러 항목에 걸친 산술을 정확히 수행하는 것이 약한 편입니다.)
+// 그래서 모델에게는 "읽기"만 맡기고 — 각 품목은 영수증에 찍힌 그대로의 금액을, 그리고
+// 영수증 하단에 표시된 실제 최종 결제 금액(finalTotal)을 별도로 읽어서 반환하게 하고 —
+// 비례 배분 계산 자체는 서버 코드에서 결정적으로(정확하게) 수행합니다.
 
 export interface ExtractedItem {
   nameJa: string;
@@ -20,9 +28,16 @@ export interface ExtractedItem {
   amount: number;
 }
 
+interface RawExtractedItem extends ExtractedItem {}
+
+interface ClaudeToolInput {
+  items?: RawExtractedItem[];
+  finalTotal?: number;
+}
+
 interface ClaudeContentBlock {
   type: string;
-  input?: { items?: unknown };
+  input?: ClaudeToolInput;
 }
 
 export async function extractReceiptItems(
@@ -49,19 +64,12 @@ export async function extractReceiptItems(
         "추출하는 어시스턴트입니다. " +
         "소계/합계/현금/카드/포인트/거스름돈/매장명/주소/전화번호 등 상품이 아닌 줄은 절대 포함하지 마세요. " +
         "각 품목의 한국어 번역명은 자연스러운 한글 상품명으로 작성하세요 (예: コーヒー豆 -> 커피 원두). " +
-        "\n\n[합계 단계 조정(할인/세금 추가) 처리] 일부 영수증은 품목별로 찍힌 가격 합계와 " +
-        "실제 최종 결제 금액이 다릅니다. 두 가지 경우가 있습니다: " +
-        "(1) 할인/차감: 영수증 하단 합계 단계에서 면세/할인(예: 免税, 消費税免除, 값 앞에 마이너스가 붙은 " +
-        "할인·차감 줄)이 한 번에 적용되어 최종 결제 금액이 품목 합계보다 낮아지는 경우. " +
-        "(2) 세금 추가: 품목별 가격이 세전 금액으로 찍혀 있고, 하단에 소비세/부가세(消費税, 稅, VAT 등)가 " +
-        "별도로 더해져서 최종 결제 금액이 품목 합계보다 높아지는 경우. " +
-        "이런 조정 줄이 보이면 (할인이든 세금 추가든 동일한 방식으로): " +
-        "조정 비율 = 실제 최종 결제 금액 ÷ 조정 적용 전 품목 합계 를 계산한 뒤, " +
-        "모든 품목의 unitPrice와 amount에 이 비율을 곱해서 반환하세요 (할인이면 비율이 1보다 작고, " +
-        "세금 추가면 비율이 1보다 커집니다 — 어느 쪽이든 각 품목에 비례 배분해서 최종적으로 모든 품목의 " +
-        "amount 합계가 실제 결제 금액과 같아지게 만드세요). " +
-        "할인/세금/차감 줄 자체는 상품이 아니므로 추출 대상에서 제외하세요. " +
-        "이런 조정이 전혀 없고 품목 합계와 최종 결제 금액이 이미 같은 일반 영수증은 표시된 금액을 그대로 사용하세요. " +
+        "\n\n[중요] 각 품목의 unitPrice와 amount는 영수증에 찍힌 숫자를 그대로 읽어서 반환하세요. " +
+        "품목 금액에 할인이나 세금을 반영해서 직접 계산하거나 조정하지 마세요 (비례 배분 계산은 " +
+        "서버에서 별도로 정확하게 처리합니다). 대신 finalTotal 필드에 영수증 하단의 " +
+        "실제 최종 결제 금액(合計/合計金額/총액/결제금액/구매자가 실제로 지불한 금액)을 " +
+        "정확히 읽어서 숫자로 반환하세요. 이 값은 소계, 할인, 세금(소비세/부가세)이 모두 " +
+        "반영된 이후의 '진짜 결제 금액'이어야 합니다. 못 찾겠으면 0으로 반환하세요. " +
         "\n\n[수입통관 신고용 부가 정보 — 최선을 다해 추정] 각 품목마다 다음 정보도 함께 채워주세요. " +
         "영수증만으로는 알 수 없는 정보가 많으니, 상품명과 일반 상식을 바탕으로 합리적으로 추정하고, " +
         "확실하지 않으면 표시를 '추정'으로 남기세요 (예: '면 캔버스 추정'): " +
@@ -80,7 +88,9 @@ export async function extractReceiptItems(
             },
             {
               type: "text",
-              text: "이 영수증 사진에서 구매 품목을 모두 추출하고, 수입통관 신고용 부가 정보도 함께 채워줘.",
+              text:
+                "이 영수증 사진에서 구매 품목을 모두 추출하고(찍힌 금액 그대로), " +
+                "실제 최종 결제 금액(finalTotal)과 수입통관 신고용 부가 정보도 함께 채워줘.",
             },
           ],
         },
@@ -88,7 +98,7 @@ export async function extractReceiptItems(
       tools: [
         {
           name: "extract_receipt_items",
-          description: "영수증에서 인식한 구매 품목 목록과 신고용 부가 정보를 반환합니다.",
+          description: "영수증에서 인식한 구매 품목 목록, 실제 최종 결제 금액, 신고용 부가 정보를 반환합니다.",
           input_schema: {
             type: "object",
             properties: {
@@ -107,8 +117,14 @@ export async function extractReceiptItems(
                     declarationKo: { type: "string", description: "한글 신고설명 (품목/용도/소재/색상/원산지)" },
                     declarationEn: { type: "string", description: "영어 신고설명" },
                     quantity: { type: "integer", description: "수량. 명시되어 있지 않으면 1" },
-                    unitPrice: { type: "number", description: "개당 단가(엔)" },
-                    amount: { type: "number", description: "해당 품목의 합계 금액(엔) = 단가 x 수량" },
+                    unitPrice: {
+                      type: "number",
+                      description: "영수증에 찍힌 그대로의 개당 단가(엔). 할인/세금 계산하지 말고 원본 숫자 그대로.",
+                    },
+                    amount: {
+                      type: "number",
+                      description: "영수증에 찍힌 그대로의 해당 품목 합계 금액(엔) = 단가 x 수량. 할인/세금 계산하지 말고 원본 숫자 그대로.",
+                    },
                   },
                   required: [
                     "nameJa",
@@ -126,8 +142,13 @@ export async function extractReceiptItems(
                   ],
                 },
               },
+              finalTotal: {
+                type: "number",
+                description:
+                  "영수증에 표시된 실제 최종 결제 금액(세금/할인 모두 반영된 진짜 지불액). 못 찾으면 0.",
+              },
             },
-            required: ["items"],
+            required: ["items", "finalTotal"],
           },
         },
       ],
@@ -143,11 +164,39 @@ export async function extractReceiptItems(
   const data = await res.json();
   const blocks: ClaudeContentBlock[] = data?.content || [];
   const toolUse = blocks.find((block) => block.type === "tool_use");
-  const items = toolUse?.input?.items;
+  const rawItems = toolUse?.input?.items;
+  const finalTotal = toolUse?.input?.finalTotal;
 
-  if (!Array.isArray(items)) {
+  if (!Array.isArray(rawItems)) {
     throw new Error("Claude 응답에서 품목 추출 결과를 찾을 수 없습니다.");
   }
 
-  return items as ExtractedItem[];
+  return applyTotalLevelAdjustment(rawItems, finalTotal);
+}
+
+// 품목별로 찍힌 금액의 합(sumOfItems)과 영수증의 실제 최종 결제 금액(finalTotal)이 다르면
+// (할인으로 낮아졌든, 세금 추가로 높아졌든) 그 차이를 모든 품목에 비례 배분합니다.
+// 이 계산은 서버에서 정확한 부동소수점 연산으로 처리하며, 모델의 산술 능력에 의존하지 않습니다.
+function applyTotalLevelAdjustment(
+  items: RawExtractedItem[],
+  finalTotal: number | undefined
+): ExtractedItem[] {
+  const sumOfItems = items.reduce((sum, it) => sum + (Number(it.amount) || 0), 0);
+
+  // finalTotal을 못 읽었거나(0), 품목 합계와 사실상 같으면(반올림 오차 이내) 조정하지 않음
+  if (!finalTotal || sumOfItems <= 0 || Math.abs(finalTotal - sumOfItems) < 1) {
+    return items;
+  }
+
+  const ratio = finalTotal / sumOfItems;
+
+  return items.map((it) => {
+    const unitPrice = Number(it.unitPrice) || 0;
+    const amount = Number(it.amount) || 0;
+    return {
+      ...it,
+      unitPrice: Math.round(unitPrice * ratio * 100) / 100,
+      amount: Math.round(amount * ratio * 100) / 100,
+    };
+  });
 }
