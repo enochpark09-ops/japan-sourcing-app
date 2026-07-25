@@ -366,3 +366,62 @@ export async function buildForwardingRequest(
 
   return wb.xlsx.writeBuffer();
 }
+
+// 5) 영수증 1장 단위 품목 리스트 (컨펌 여부와 무관하게 해당 영수증의 품목을 그대로 내보냄) --
+// 사입 건 전체가 아니라 영수증 카드 하나를 그대로 엑셀로 옮기고 싶을 때 사용합니다.
+export interface ReceiptExportItem {
+  nameJa: string;
+  nameKo: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export async function buildReceiptItemList(
+  label: string,
+  items: ReceiptExportItem[]
+): Promise<ExcelJS.Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("영수증 품목");
+
+  const headers = ["영수증 품목", "원문(일본어)", "한글 품목명", "수량", "단가(¥)", "금액(¥)"];
+  const headerRow = ws.getRow(1);
+  headers.forEach((h, i) => {
+    const cell = headerRow.getCell(i + 1);
+    cell.value = h;
+    headerStyle(cell);
+  });
+
+  let total = 0;
+  let rowIdx = 2;
+  for (const item of items) {
+    const row = ws.getRow(rowIdx);
+    row.getCell(1).value = label;
+    row.getCell(1).font = { bold: true };
+    row.getCell(2).value = item.nameJa;
+    row.getCell(3).value = item.nameKo;
+    row.getCell(4).value = item.quantity;
+    row.getCell(5).value = item.unitPrice;
+    row.getCell(6).value = item.amount;
+    for (let c = 1; c <= 6; c++) cellBorder(row.getCell(c));
+    total += item.amount;
+    rowIdx++;
+  }
+
+  const totalRow = ws.getRow(rowIdx);
+  totalRow.getCell(5).value = "합계";
+  totalRow.getCell(5).font = { bold: true };
+  totalRow.getCell(6).value = total;
+  totalRow.getCell(6).font = { bold: true };
+
+  ws.columns = [
+    { width: 14 },
+    { width: 26 },
+    { width: 26 },
+    { width: 8 },
+    { width: 12 },
+    { width: 12 },
+  ];
+
+  return wb.xlsx.writeBuffer();
+}
