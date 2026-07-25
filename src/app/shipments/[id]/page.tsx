@@ -183,6 +183,7 @@ function ReceiptCard({ receipt, onChanged }: { receipt: Receipt; onChanged: () =
   const [cardError, setCardError] = useState("");
 
   const hasConfirmedItem = receipt.items.some((i) => i.confirmed);
+  const receiptTotal = receipt.items.reduce((sum, i) => sum + Number(i.amount), 0);
 
   async function handleDeleteReceipt() {
     if (!window.confirm("이 영수증(사진 + 인식된 품목 전체)을 삭제할까요? 되돌릴 수 없습니다.")) return;
@@ -263,26 +264,31 @@ function ReceiptCard({ receipt, onChanged }: { receipt: Receipt; onChanged: () =
       {receipt.items.length === 0 ? (
         <div className="empty">품목을 인식하지 못했습니다. 사진을 다시 찍어 업로드해보세요.</div>
       ) : (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th style={{ minWidth: 130 }}>원문(일본어)</th>
-                <th style={{ minWidth: 130 }}>한글 품목명</th>
-                <th style={{ minWidth: 64 }}>수량</th>
-                <th style={{ minWidth: 90 }}>단가(¥)</th>
-                <th style={{ minWidth: 90 }}>금액(¥)</th>
-                <th style={{ minWidth: 90 }}>상태</th>
-                <th style={{ minWidth: 60 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {receipt.items.map((item) => (
-                <ItemRow key={item.id} receiptId={receipt.id} item={item} onChanged={onChanged} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ minWidth: 130 }}>원문(일본어)</th>
+                  <th style={{ minWidth: 130 }}>한글 품목명</th>
+                  <th style={{ minWidth: 64 }}>수량</th>
+                  <th style={{ minWidth: 90 }}>단가(¥)</th>
+                  <th style={{ minWidth: 90 }}>금액(¥)</th>
+                  <th style={{ minWidth: 90 }}>상태</th>
+                  <th style={{ minWidth: 60 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {receipt.items.map((item) => (
+                  <ItemRow key={item.id} receiptId={receipt.id} item={item} onChanged={onChanged} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ textAlign: "right", marginTop: 8, fontSize: 13 }}>
+            이 영수증 합계: <strong>¥{receiptTotal.toLocaleString()}</strong>
+          </div>
+        </>
       )}
     </div>
   );
@@ -362,14 +368,33 @@ function ItemRow({
         {item.confirmed ? (
           item.quantity
         ) : (
-          <input className="num-input" type="number" value={quantity} min={1} onChange={(e) => setQuantity(parseInt(e.target.value) || 1)} />
+          <input
+            className="num-input"
+            type="number"
+            value={quantity}
+            min={1}
+            onChange={(e) => {
+              const q = parseInt(e.target.value) || 1;
+              setQuantity(q);
+              setAmount(Math.round(q * unitPrice * 100) / 100);
+            }}
+          />
         )}
       </td>
       <td style={{ minWidth: 90 }}>
         {item.confirmed ? (
           Number(item.unitPrice).toLocaleString()
         ) : (
-          <input className="num-input" type="number" value={unitPrice} onChange={(e) => setUnitPrice(parseFloat(e.target.value) || 0)} />
+          <input
+            className="num-input"
+            type="number"
+            value={unitPrice}
+            onChange={(e) => {
+              const p = parseFloat(e.target.value) || 0;
+              setUnitPrice(p);
+              setAmount(Math.round(quantity * p * 100) / 100);
+            }}
+          />
         )}
       </td>
       <td style={{ minWidth: 90 }}>
