@@ -144,8 +144,13 @@ export default function ShipmentDetailPage() {
         <div className="card"><div className="empty">아직 업로드된 영수증이 없습니다.</div></div>
       )}
 
-      {shipment.receipts.map((receipt) => (
-        <ReceiptCard key={receipt.id} receipt={receipt} onChanged={load} />
+      {shipment.receipts.map((receipt, idx) => (
+        <ReceiptCard
+          key={receipt.id}
+          receipt={receipt}
+          label={`${shipment.name}-${idx + 1}`}
+          onChanged={load}
+        />
       ))}
 
       <div className="card">
@@ -177,13 +182,45 @@ export default function ShipmentDetailPage() {
   );
 }
 
-function ReceiptCard({ receipt, onChanged }: { receipt: Receipt; onChanged: () => void }) {
+function ReceiptCard({
+  receipt,
+  label,
+  onChanged,
+}: {
+  receipt: Receipt;
+  label: string;
+  onChanged: () => void;
+}) {
   const [deletingReceipt, setDeletingReceipt] = useState(false);
   const [reextracting, setReextracting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [cardError, setCardError] = useState("");
 
   const hasConfirmedItem = receipt.items.some((i) => i.confirmed);
   const receiptTotal = receipt.items.reduce((sum, i) => sum + Number(i.amount), 0);
+
+  async function handleExport() {
+    setExporting(true);
+    setCardError("");
+    const res = await fetch(
+      `/api/receipts/${receipt.id}/export?label=${encodeURIComponent(label)}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setCardError(data.error || "엑셀 변환 실패");
+      setExporting(false);
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${label}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExporting(false);
+  }
 
   async function handleDeleteReceipt() {
     if (!window.confirm("이 영수증(사진 + 인식된 품목 전체)을 삭제할까요? 되돌릴 수 없습니다.")) return;
@@ -285,8 +322,13 @@ function ReceiptCard({ receipt, onChanged }: { receipt: Receipt; onChanged: () =
               </tbody>
             </table>
           </div>
-          <div style={{ textAlign: "right", marginTop: 8, fontSize: 13 }}>
-            이 영수증 합계: <strong>¥{receiptTotal.toLocaleString()}</strong>
+          <div className="row-between" style={{ marginTop: 8 }}>
+            <button className="btn btn-sm" onClick={handleExport} disabled={exporting}>
+              {exporting ? "변환 중..." : "엑셀로 변환하기"}
+            </button>
+            <div style={{ fontSize: 13 }}>
+              이 영수증 합계: <strong>¥{receiptTotal.toLocaleString()}</strong>
+            </div>
           </div>
         </>
       )}
